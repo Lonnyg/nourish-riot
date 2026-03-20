@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login Test – Nourish Riot</title>
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: sans-serif;
+      background: #0d0d0d;
+      color: #e8e8e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      gap: 24px;
+    }
+    h1 { font-size: 1.2rem; color: #c8ff00; text-align: center; }
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #3d3d3d;
+      border-radius: 8px;
+      padding: 24px;
+      width: 100%;
+      max-width: 380px;
+    }
+    .card h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 16px; }
+
+    /* ── Button with clip-path on WRAPPER (not the button) ── */
+    .btn-wrap {
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+      margin-bottom: 12px;
+    }
+    button {
+      font-family: sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #0d0d0d;
+      background: #c8ff00;
+      padding: 14px;
+      width: 100%;
+      border: none;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { background: #b0e000; }
+
+    /* ── Status log ── */
+    #log {
+      font-size: 0.85rem;
+      line-height: 1.7;
+      color: #aaa;
+      min-height: 80px;
+    }
+    .ok  { color: #c8ff00; }
+    .err { color: #ff4f4f; }
+    .info { color: #60c8ff; }
+
+    /* ── Widget detection badge ── */
+    #widgetBadge {
+      font-size: 0.8rem;
+      padding: 6px 12px;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .badge-ok  { background: #1a3300; color: #c8ff00; border: 1px solid #c8ff00; }
+    .badge-err { background: #330000; color: #ff4f4f; border: 1px solid #ff4f4f; }
+  </style>
+</head>
+<body>
+
+<h1>Nourish Riot — Login Test Page</h1>
+
+<div class="card">
+  <h2>Widget detection</h2>
+  <div id="widgetBadge">Checking…</div>
+</div>
+
+<div class="card">
+  <h2>Button test (clip-path on wrapper, not button)</h2>
+  <div class="btn-wrap">
+    <button id="testBtn">Tap Me — Open Login</button>
+  </div>
+  <div id="log">Waiting for tap…</div>
+</div>
+
+<div class="card">
+  <h2>Plain button (no clip-path at all)</h2>
+  <button id="plainBtn" style="margin-bottom:0">Tap Me — Open Login</button>
+</div>
+
+<script>
+  const log = document.getElementById('log');
+
+  function addLog(msg, cls) {
+    const line = document.createElement('div');
+    line.className = cls || '';
+    line.textContent = new Date().toLocaleTimeString() + ' — ' + msg;
+    log.prepend(line);
+  }
+
+  // ── 1. Check widget availability ──
+  const badge = document.getElementById('widgetBadge');
+  if (window.netlifyIdentity) {
+    badge.textContent = '✓ netlify-identity-widget loaded';
+    badge.className = 'badge-ok';
+  } else {
+    badge.textContent = '✗ window.netlifyIdentity not found';
+    badge.className = 'badge-err';
+  }
+
+  // ── 2. Wire identity events ──
+  function openWidget() {
+    addLog('button click reached JavaScript ✓', 'ok');
+    if (!window.netlifyIdentity) {
+      addLog('netlifyIdentity not defined — widget failed to load', 'err');
+      return;
+    }
+    try {
+      addLog('calling netlifyIdentity.open()…', 'info');
+      netlifyIdentity.open();
+      addLog('netlifyIdentity.open() returned (no error)', 'ok');
+    } catch (e) {
+      addLog('ERROR: ' + e.message, 'err');
+    }
+  }
+
+  document.getElementById('testBtn').addEventListener('click', openWidget);
+  document.getElementById('plainBtn').addEventListener('click', openWidget);
+
+  if (window.netlifyIdentity) {
+    try {
+      netlifyIdentity.init();
+      netlifyIdentity.on('init',  (u) => addLog('init event — user: ' + (u ? u.email : 'none'), 'info'));
+      netlifyIdentity.on('login', (u) => addLog('login event — ' + u.email, 'ok'));
+      netlifyIdentity.on('error', (e) => addLog('widget error: ' + e, 'err'));
+    } catch (e) {
+      addLog('init threw: ' + e.message, 'err');
+    }
+  }
+</script>
+</body>
+</html>

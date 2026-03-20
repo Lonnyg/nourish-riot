@@ -2,4 +2,6 @@ window.APP_CONFIG = {
   SUPABASE_URL:  'https://YOUR_PROJECT.supabase.co',
   SUPABASE_KEY:  'YOUR_SUPABASE_ANON_KEY',
   ANTHROPIC_KEY: 'YOUR_ANTHROPIC_API_KEY',
+  USERNAME:      'your_username',
+  PASSWORD:      'your_password',
 };

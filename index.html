@@ -744,6 +744,109 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── LOGIN SCREEN ── */
+    #loginScreen {
+      position: fixed;
+      inset: 0;
+      background: var(--void);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #loginScreen.hidden { display: none; }
+    .login-box {
+      background: var(--ash);
+      border: 1px solid var(--gravel);
+      border-radius: 6px;
+      padding: 40px 36px 36px;
+      width: 100%;
+      max-width: 380px;
+      position: relative;
+    }
+    .login-box::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--acid), var(--plasma));
+      border-radius: 6px 6px 0 0;
+    }
+    .login-logo {
+      font-family: var(--font-head);
+      font-size: 1.8rem;
+      letter-spacing: 0.04em;
+      color: var(--bone);
+      text-align: center;
+      margin-bottom: 4px;
+    }
+    .login-logo span { color: var(--acid); }
+    .login-tagline {
+      text-align: center;
+      font-family: var(--font-body);
+      font-style: italic;
+      color: var(--fog);
+      font-size: 0.85rem;
+      margin-bottom: 32px;
+    }
+    .login-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .login-group label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fog);
+    }
+    .login-group input {
+      padding: 11px 13px;
+      font-size: 1rem;
+      outline: none;
+      width: 100%;
+      border-radius: var(--radius);
+    }
+    .login-group input:focus { border-color: var(--acid); }
+    .login-error {
+      color: var(--plasma);
+      font-size: 0.85rem;
+      min-height: 20px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .login-btn {
+      font-family: var(--font-head);
+      font-size: 1rem;
+      letter-spacing: 0.05em;
+      color: var(--void);
+      background: var(--acid);
+      padding: 13px;
+      width: 100%;
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+      transition: background 0.2s;
+      margin-top: 4px;
+    }
+    .login-btn:hover { background: #d8ff10; }
+
+    /* logout button in header */
+    .logout-btn {
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--fog);
+      padding: 6px 12px;
+      border: 1px solid var(--gravel);
+      border-radius: var(--radius);
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .logout-btn:hover { color: var(--plasma); border-color: var(--plasma); }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 600px) {
       header { padding: 0 14px; }
@@ -760,6 +863,26 @@
 </head>
 <body>
 
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">NOURISH<span>RIOT</span></div>
+    <div class="login-tagline">your personal recipe sanctuary</div>
+    <form id="loginForm" autocomplete="off">
+      <div class="login-group">
+        <label for="l-user">Username</label>
+        <input type="text" id="l-user" autocomplete="username" required />
+      </div>
+      <div class="login-group">
+        <label for="l-pass">Password</label>
+        <input type="password" id="l-pass" autocomplete="current-password" required />
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <button type="submit" class="login-btn">Enter</button>
+    </form>
+  </div>
+</div>
+
 <!-- GRAIN -->
 <div class="grain"></div>
 
@@ -768,6 +891,7 @@
   <div class="logo">NOURISH<span>RIOT</span></div>
   <div class="header-right">
     <div class="sync-dot syncing" id="syncDot" title="Sync status"></div>
+    <button class="logout-btn" id="logoutBtn">Log out</button>
     <div class="add-wrapper">
       <button class="add-btn" id="addBtn">+ Add Recipe</button>
       <div class="add-dropdown" id="addDropdown">
@@ -2054,28 +2178,69 @@ function wireEvents() {
 }
 
 // ═══════════════════════════════════════════════
-// ── INIT
+// ── AUTH
 // ═══════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', async () => {
+function isAuthed() {
+  return sessionStorage.getItem('nr_authed') === '1';
+}
+
+async function showApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
   renderSkeletons();
   renderPills();
   wireEvents();
 
   if (!CONFIG.SUPABASE_URL || CONFIG.SUPABASE_URL === 'YOUR_SUPABASE_URL') {
-    // Demo mode — no real DB
     setSyncState('error');
     document.getElementById('recipeGrid').innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">⚙️</div>
         <h3>Configure Your Keys</h3>
-        <p>Open <code>index.html</code> and fill in <code>CONFIG.SUPABASE_URL</code>,
-           <code>CONFIG.SUPABASE_KEY</code>, and <code>CONFIG.ANTHROPIC_KEY</code>.</p>
+        <p>Open <code>config.js</code> and fill in your Supabase and Anthropic keys.</p>
       </div>`;
     return;
   }
 
   await loadRecipes();
   subscribeRealtime();
+}
+
+function showLogin() {
+  document.getElementById('loginScreen').classList.remove('hidden');
+  sessionStorage.removeItem('nr_authed');
+}
+
+function wireAuth() {
+  document.getElementById('loginForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const user = document.getElementById('l-user').value.trim();
+    const pass = document.getElementById('l-pass').value;
+    const cfg  = window.APP_CONFIG || {};
+
+    if (user === cfg.USERNAME && pass === cfg.PASSWORD) {
+      sessionStorage.setItem('nr_authed', '1');
+      document.getElementById('loginError').textContent = '';
+      showApp();
+    } else {
+      document.getElementById('loginError').textContent = 'Invalid username or password.';
+      document.getElementById('l-pass').value = '';
+      document.getElementById('l-pass').focus();
+    }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    showLogin();
+    document.getElementById('l-user').value = '';
+    document.getElementById('l-pass').value = '';
+  });
+}
+
+// ═══════════════════════════════════════════════
+// ── INIT
+// ═══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  wireAuth();
+  if (isAuthed()) await showApp();
 });
 </script>
 </body>

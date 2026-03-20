@@ -750,7 +750,7 @@
       position: fixed;
       inset: 0;
       background: var(--void);
-      z-index: 100;
+      z-index: 10000; /* above .grain (9999) — fixes Android touch-event bug with mix-blend-mode overlays */
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1043,7 +1043,14 @@ const CONFIG = {
 // ── SUPABASE CLIENT
 // ═══════════════════════════════════════════════
 const { createClient } = supabase;
-const db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+let db = null;
+try {
+  if (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_KEY) {
+    db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+  }
+} catch (e) {
+  console.warn('Supabase init:', e.message);
+}
 
 // ═══════════════════════════════════════════════
 // ── STATE
@@ -2184,6 +2191,24 @@ function isAuthed() {
 
 async function showApp() {
   document.getElementById('loginScreen').classList.add('hidden');
+
+  // On Netlify, fetch Supabase keys from server-side config function
+  if (!db && isNetlify) {
+    try {
+      const res  = await fetch('/.netlify/functions/config');
+      const cfg  = await res.json();
+      if (cfg.supabaseUrl && cfg.supabaseKey) {
+        CONFIG.SUPABASE_URL = cfg.supabaseUrl;
+        CONFIG.SUPABASE_KEY = cfg.supabaseKey;
+        db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+      }
+    } catch(e) { console.warn('Config fetch failed:', e.message); }
+  }
+  // Local: init Supabase if it wasn't ready at page load
+  if (!db && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_KEY) {
+    try { db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY); } catch(e) {}
+  }
+
   renderSkeletons();
   renderPills();
   wireEvents();

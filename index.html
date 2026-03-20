@@ -750,7 +750,7 @@
       position: fixed;
       inset: 0;
       background: var(--void);
-      z-index: 10000; /* above .grain (9999) — fixes Android touch-event bug with mix-blend-mode overlays */
+      z-index: 100;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -2244,6 +2244,10 @@ function wireAuth() {
 
   // Wire the button first — before init() — so a widget error never prevents it
   document.getElementById('niLoginBtn').addEventListener('click', () => {
+    // Hide the login screen overlay BEFORE opening the widget — the Netlify
+    // Identity iframe has z-index ~99, so any overlay above it would block
+    // the modal.  We restore the screen on 'close' if the user didn't log in.
+    document.getElementById('loginScreen').classList.add('hidden');
     netlifyIdentity.open();
   });
 
@@ -2262,6 +2266,11 @@ function wireAuth() {
     netlifyIdentity.on('login', () => {
       netlifyIdentity.close();
       showApp();
+    });
+
+    netlifyIdentity.on('close', () => {
+      // If widget closed without a successful login, restore the login screen
+      if (!netlifyIdentity.currentUser()) showLogin();
     });
 
     netlifyIdentity.on('logout', () => {

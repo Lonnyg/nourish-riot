@@ -2011,8 +2011,7 @@ async function aiParse(type, content, mediaType = 'image/jpeg') {
 
   // Use local proxy function when hosted on Netlify,
   // fall back to direct Anthropic call when running locally.
-  const isNetlify = window.location.hostname.endsWith('.netlify.app') ||
-                    window.location.hostname === 'nourish-riot.netlify.app';
+  // isNetlify defined at top of AUTH section
 
   let response;
   if (isNetlify) {
@@ -2216,21 +2215,50 @@ function showLogin() {
   sessionStorage.removeItem('nr_authed');
 }
 
-function wireAuth() {
-  document.getElementById('loginForm').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const user = document.getElementById('l-user').value.trim();
-    const pass = document.getElementById('l-pass').value;
-    const cfg  = window.APP_CONFIG || {};
+const isNetlify = window.location.hostname.endsWith('.netlify.app');
 
-    if (user === cfg.USERNAME && pass === cfg.PASSWORD) {
-      sessionStorage.setItem('nr_authed', '1');
-      document.getElementById('loginError').textContent = '';
-      showApp();
-    } else {
-      document.getElementById('loginError').textContent = 'Invalid username or password.';
-      document.getElementById('l-pass').value = '';
-      document.getElementById('l-pass').focus();
+async function checkCredentials(username, password) {
+  if (isNetlify) {
+    const res = await fetch('/.netlify/functions/auth', {
+      method:  'POST',
+      headers: { 'content-type': 'application/json' },
+      body:    JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    return data.ok === true;
+  }
+  // Local: check against config.js
+  const cfg = window.APP_CONFIG || {};
+  return username === cfg.USERNAME && password === cfg.PASSWORD;
+}
+
+function wireAuth() {
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const user    = document.getElementById('l-user').value.trim();
+    const pass    = document.getElementById('l-pass').value;
+    const errEl   = document.getElementById('loginError');
+    const btn     = document.querySelector('.login-btn');
+
+    btn.textContent = 'Checking…';
+    btn.disabled = true;
+    errEl.textContent = '';
+
+    try {
+      const ok = await checkCredentials(user, pass);
+      if (ok) {
+        sessionStorage.setItem('nr_authed', '1');
+        await showApp();
+      } else {
+        errEl.textContent = 'Invalid username or password.';
+        document.getElementById('l-pass').value = '';
+        document.getElementById('l-pass').focus();
+      }
+    } catch (err) {
+      errEl.textContent = 'Login error: ' + err.message;
+    } finally {
+      btn.textContent = 'Enter';
+      btn.disabled = false;
     }
   });
 

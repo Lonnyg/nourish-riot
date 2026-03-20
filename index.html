@@ -869,7 +869,7 @@
   <div class="login-box">
     <div class="login-logo">NOURISH<span>RIOT</span></div>
     <div class="login-tagline">your personal recipe sanctuary</div>
-    <button class="login-btn" id="niLoginBtn" onclick="netlifyIdentity.open()">Login</button>
+    <button class="login-btn" id="niLoginBtn">Login</button>
   </div>
 </div>
 
@@ -2215,6 +2215,13 @@ function wireAuth() {
     return;
   }
 
+  netlifyIdentity.init();
+
+  netlifyIdentity.on('init', (user) => {
+    if (user) showApp();
+    // else: stay on login screen
+  });
+
   netlifyIdentity.on('login', () => {
     netlifyIdentity.close();
     showApp();
@@ -2222,6 +2229,10 @@ function wireAuth() {
 
   netlifyIdentity.on('logout', () => {
     showLogin();
+  });
+
+  document.getElementById('niLoginBtn').addEventListener('click', () => {
+    netlifyIdentity.open();
   });
 
   document.getElementById('logoutBtn').addEventListener('click', () => {
@@ -2232,10 +2243,8 @@ function wireAuth() {
 // ═══════════════════════════════════════════════
 // ── INIT
 // ═══════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   wireAuth();
-  if (!window.netlifyIdentity) return; // local dev: wireAuth() already called showApp()
-  if (isAuthed()) await showApp();
 });
 </script>
 </body>

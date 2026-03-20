@@ -750,7 +750,7 @@
       position: fixed;
       inset: 0;
       background: var(--void);
-      z-index: 100;
+      z-index: 10000; /* above .grain (9999) — fixes Android touch-event bug with mix-blend-mode overlays */
       display: flex;
       align-items: center;
       justify-content: center;

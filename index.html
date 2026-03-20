@@ -2215,6 +2215,11 @@ function wireAuth() {
     return;
   }
 
+  netlifyIdentity.on('init', (user) => {
+    if (user) showApp();
+    // else: stay on login screen
+  });
+
   netlifyIdentity.on('login', () => {
     netlifyIdentity.close();
     showApp();
@@ -2232,10 +2237,8 @@ function wireAuth() {
 // ═══════════════════════════════════════════════
 // ── INIT
 // ═══════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   wireAuth();
-  if (!window.netlifyIdentity) return; // local dev: wireAuth() already called showApp()
-  if (isAuthed()) await showApp();
 });
 </script>
 </body>

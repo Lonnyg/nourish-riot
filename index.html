@@ -1042,7 +1042,7 @@
 const CONFIG = {
   SUPABASE_URL:  window.APP_CONFIG?.SUPABASE_URL  || '',
   SUPABASE_KEY:  window.APP_CONFIG?.SUPABASE_KEY  || '',
-  ANTHROPIC_KEY: window.APP_CONFIG?.ANTHROPIC_KEY || '',
+  ANTHROPIC_KEY: window.APP_CONFIG?.ANTHROPIC_KEY || '', // only used when running locally
   BUCKET:        'recipe-photos',
   MODEL:         'claude-sonnet-4-20250514',
 };
@@ -1983,10 +1983,6 @@ notes (string or null), inspiredBy (string or null).
 If a field cannot be determined, use null. Return no other text, no markdown fences, no explanation.`;
 
 async function aiParse(type, content, mediaType = 'image/jpeg') {
-  if (!CONFIG.ANTHROPIC_KEY || CONFIG.ANTHROPIC_KEY === 'YOUR_ANTHROPIC_API_KEY') {
-    throw new Error('Anthropic API key not configured. Add it to CONFIG.ANTHROPIC_KEY.');
-  }
-
   let messages;
   if (type === 'image') {
     messages = [{
@@ -1994,11 +1990,7 @@ async function aiParse(type, content, mediaType = 'image/jpeg') {
       content: [
         {
           type: 'image',
-          source: {
-            type: 'base64',
-            media_type: mediaType,
-            data: content,
-          },
+          source: { type: 'base64', media_type: mediaType, data: content },
         },
         { type: 'text', text: 'Extract the recipe from this image. Return only JSON.' },
       ],
@@ -2010,21 +2002,40 @@ async function aiParse(type, content, mediaType = 'image/jpeg') {
     }];
   }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': CONFIG.ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: CONFIG.MODEL,
-      max_tokens: 2048,
-      system: AI_SYSTEM,
-      messages,
-    }),
-  });
+  const payload = {
+    model:      CONFIG.MODEL,
+    max_tokens: 2048,
+    system:     AI_SYSTEM,
+    messages,
+  };
+
+  // Use local proxy function when hosted on Netlify,
+  // fall back to direct Anthropic call when running locally.
+  const isNetlify = window.location.hostname.endsWith('.netlify.app') ||
+                    window.location.hostname === 'nourish-riot.netlify.app';
+
+  let response;
+  if (isNetlify) {
+    response = await fetch('/.netlify/functions/ai-extract', {
+      method:  'POST',
+      headers: { 'content-type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+  } else {
+    if (!CONFIG.ANTHROPIC_KEY || CONFIG.ANTHROPIC_KEY === 'YOUR_ANTHROPIC_API_KEY') {
+      throw new Error('Anthropic API key not configured in config.js.');
+    }
+    response = await fetch('https://api.anthropic.com/v1/messages', {
+      method:  'POST',
+      headers: {
+        'x-api-key':                              CONFIG.ANTHROPIC_KEY,
+        'anthropic-version':                      '2023-06-01',
+        'content-type':                           'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify(payload),
+    });
+  }
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -2032,18 +2043,13 @@ async function aiParse(type, content, mediaType = 'image/jpeg') {
   }
 
   const json = await response.json();
-  const raw = json.content?.[0]?.text?.trim();
+  const raw  = json.content?.[0]?.text?.trim();
   if (!raw) throw new Error('Empty response from AI');
 
-  // Strip markdown fences if present despite instructions
   const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-
   try {
     const parsed = JSON.parse(cleaned);
-    // Normalize null strings
-    Object.keys(parsed).forEach(k => {
-      if (parsed[k] === 'null') parsed[k] = null;
-    });
+    Object.keys(parsed).forEach(k => { if (parsed[k] === 'null') parsed[k] = null; });
     return parsed;
   } catch {
     throw new Error('AI returned invalid JSON. Try again or use manual entry.');

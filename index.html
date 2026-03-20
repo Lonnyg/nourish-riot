@@ -819,6 +819,10 @@
       margin-bottom: 8px;
       text-align: center;
     }
+    .login-btn-wrap {
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+      margin-top: 4px;
+    }
     .login-btn {
       font-family: var(--font-head);
       font-size: 1rem;
@@ -827,9 +831,7 @@
       background: var(--acid);
       padding: 13px;
       width: 100%;
-      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
       transition: background 0.2s;
-      margin-top: 4px;
     }
     .login-btn:hover { background: #d8ff10; }
 
@@ -869,7 +871,7 @@
   <div class="login-box">
     <div class="login-logo">NOURISH<span>RIOT</span></div>
     <div class="login-tagline">your personal recipe sanctuary</div>
-    <button class="login-btn" id="niLoginBtn">Login</button>
+    <div class="login-btn-wrap"><button class="login-btn" id="niLoginBtn">Login</button></div>
   </div>
 </div>
 
@@ -2215,22 +2217,7 @@ function wireAuth() {
     return;
   }
 
-  netlifyIdentity.init();
-
-  netlifyIdentity.on('init', (user) => {
-    if (user) showApp();
-    // else: stay on login screen
-  });
-
-  netlifyIdentity.on('login', () => {
-    netlifyIdentity.close();
-    showApp();
-  });
-
-  netlifyIdentity.on('logout', () => {
-    showLogin();
-  });
-
+  // Wire the button first — before init() — so a widget error never prevents it
   document.getElementById('niLoginBtn').addEventListener('click', () => {
     netlifyIdentity.open();
   });
@@ -2238,6 +2225,26 @@ function wireAuth() {
   document.getElementById('logoutBtn').addEventListener('click', () => {
     netlifyIdentity.logout();
   });
+
+  try {
+    netlifyIdentity.init();
+
+    netlifyIdentity.on('init', (user) => {
+      if (user) showApp();
+      // else: stay on login screen
+    });
+
+    netlifyIdentity.on('login', () => {
+      netlifyIdentity.close();
+      showApp();
+    });
+
+    netlifyIdentity.on('logout', () => {
+      showLogin();
+    });
+  } catch (e) {
+    console.error('Netlify Identity init error:', e);
+  }
 }
 
 // ═══════════════════════════════════════════════

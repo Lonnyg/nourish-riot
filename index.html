@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Barlow+Condensed:wght@300;400;600;700&family=Noto+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
   <script src="config.js"></script>
   <style>
     /* ── DESIGN TOKENS ── */
@@ -868,18 +869,7 @@
   <div class="login-box">
     <div class="login-logo">NOURISH<span>RIOT</span></div>
     <div class="login-tagline">your personal recipe sanctuary</div>
-    <form id="loginForm" autocomplete="off">
-      <div class="login-group">
-        <label for="l-user">Username</label>
-        <input type="text" id="l-user" autocomplete="username" required />
-      </div>
-      <div class="login-group">
-        <label for="l-pass">Password</label>
-        <input type="password" id="l-pass" autocomplete="current-password" required />
-      </div>
-      <div class="login-error" id="loginError"></div>
-      <button type="submit" class="login-btn">Enter</button>
-    </form>
+    <button class="login-btn" id="niLoginBtn" onclick="netlifyIdentity.open()">Login</button>
   </div>
 </div>
 
@@ -2186,7 +2176,8 @@ function wireEvents() {
 // ── AUTH
 // ═══════════════════════════════════════════════
 function isAuthed() {
-  return sessionStorage.getItem('nr_authed') === '1';
+  if (!window.netlifyIdentity) return true; // local dev: always authed
+  return !!netlifyIdentity.currentUser();
 }
 
 async function showApp() {
@@ -2212,60 +2203,29 @@ async function showApp() {
 
 function showLogin() {
   document.getElementById('loginScreen').classList.remove('hidden');
-  sessionStorage.removeItem('nr_authed');
 }
 
-const isNetlify = window.location.hostname.endsWith('.netlify.app');
-
-async function checkCredentials(username, password) {
-  if (isNetlify) {
-    const res = await fetch('/.netlify/functions/auth', {
-      method:  'POST',
-      headers: { 'content-type': 'application/json' },
-      body:    JSON.stringify({ username, password }),
-    });
-    const data = await res.json();
-    return data.ok === true;
-  }
-  // Local: check against config.js
-  const cfg = window.APP_CONFIG || {};
-  return username === cfg.USERNAME && password === cfg.PASSWORD;
-}
+const isNetlify = window.location.hostname !== 'localhost' &&
+                  !window.location.hostname.startsWith('127.');
 
 function wireAuth() {
-  document.getElementById('loginForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const user    = document.getElementById('l-user').value.trim();
-    const pass    = document.getElementById('l-pass').value;
-    const errEl   = document.getElementById('loginError');
-    const btn     = document.querySelector('.login-btn');
+  if (!window.netlifyIdentity) {
+    // Local dev: skip auth
+    showApp();
+    return;
+  }
 
-    btn.textContent = 'Checking…';
-    btn.disabled = true;
-    errEl.textContent = '';
+  netlifyIdentity.on('login', () => {
+    netlifyIdentity.close();
+    showApp();
+  });
 
-    try {
-      const ok = await checkCredentials(user, pass);
-      if (ok) {
-        sessionStorage.setItem('nr_authed', '1');
-        await showApp();
-      } else {
-        errEl.textContent = 'Invalid username or password.';
-        document.getElementById('l-pass').value = '';
-        document.getElementById('l-pass').focus();
-      }
-    } catch (err) {
-      errEl.textContent = 'Login error: ' + err.message;
-    } finally {
-      btn.textContent = 'Enter';
-      btn.disabled = false;
-    }
+  netlifyIdentity.on('logout', () => {
+    showLogin();
   });
 
   document.getElementById('logoutBtn').addEventListener('click', () => {
-    showLogin();
-    document.getElementById('l-user').value = '';
-    document.getElementById('l-pass').value = '';
+    netlifyIdentity.logout();
   });
 }
 
@@ -2274,6 +2234,7 @@ function wireAuth() {
 // ═══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
   wireAuth();
+  if (!window.netlifyIdentity) return; // local dev: wireAuth() already called showApp()
   if (isAuthed()) await showApp();
 });
 </script>

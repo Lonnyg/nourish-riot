@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nourish Riot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Barlow+Condensed:wght@300;400;600;700&family=Noto+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <style>
+    /* ── DESIGN TOKENS ── */
+    :root {
+      --void:   #0d0d0d;
+      --ash:    #1a1a1a;
+      --smoke:  #2b2b2b;
+      --gravel: #3d3d3d;
+      --fog:    #888888;
+      --bone:   #e8e2d9;
+      --acid:   #c8f000;
+      --plasma: #ff2d78;
+      --zen:    #7ecec4;
+      --font-head: 'Black Ops One', cursive;
+      --font-ui:   'Barlow Condensed', sans-serif;
+      --font-body: 'Noto Serif', serif;
+      --radius: 4px;
+      --card-w: 280px;
+    }
+
+    /* ── RESET ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      background: var(--void);
+      color: var(--bone);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; color: inherit; }
+    input, select, textarea {
+      font-family: var(--font-ui);
+      background: var(--smoke);
+      color: var(--bone);
+      border: 1px solid var(--gravel);
+      border-radius: var(--radius);
+    }
+    input::placeholder, textarea::placeholder { color: var(--fog); }
+
+    /* ── GRAIN ── */
+    .grain {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.045;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 64px;
+      background: var(--ash);
+      border-bottom: 3px solid var(--acid);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    /* stripe lives in its own overflow-hidden wrapper so the dropdown isn't clipped */
+    header::after {
+      content: '';
+      position: absolute;
+      top: 0; right: -20px;
+      width: 120px; height: 100%;
+      background: var(--plasma);
+      opacity: 0.12;
+      transform: skewX(-18deg);
+      pointer-events: none;
+      clip-path: inset(0);
+    }
+    .logo {
+      font-family: var(--font-head);
+      font-size: 1.6rem;
+      letter-spacing: 0.04em;
+      color: var(--bone);
+      z-index: 1;
+    }
+    .logo span { color: var(--acid); }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 1;
+    }
+
+    /* ── SYNC DOT ── */
+    .sync-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--gravel);
+      box-shadow: none;
+      transition: background 0.3s, box-shadow 0.3s;
+      flex-shrink: 0;
+    }
+    .sync-dot.synced {
+      background: var(--acid);
+      box-shadow: 0 0 8px var(--acid);
+    }
+    .sync-dot.syncing {
+      background: var(--zen);
+      box-shadow: 0 0 8px var(--zen);
+      animation: pulse 1s ease-in-out infinite;
+    }
+    .sync-dot.error {
+      background: var(--plasma);
+      box-shadow: 0 0 8px var(--plasma);
+    }
+    @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+
+    /* ── ADD BUTTON ── */
+    .add-wrapper { position: relative; }
+    .add-btn {
+      font-family: var(--font-head);
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      color: var(--void);
+      background: var(--acid);
+      padding: 10px 22px 10px 18px;
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+      transition: background 0.2s, transform 0.15s;
+      white-space: nowrap;
+    }
+    .add-btn:hover { background: #d8ff10; transform: translateY(-1px); }
+    .add-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: var(--ash);
+      border: 1px solid var(--gravel);
+      border-radius: var(--radius);
+      min-width: 200px;
+      z-index: 200;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      overflow: hidden;
+    }
+    .add-dropdown.open { display: block; }
+    .add-dropdown button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 12px 16px;
+      color: var(--bone);
+      font-family: var(--font-ui);
+      font-size: 0.95rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .add-dropdown button:hover { background: var(--smoke); color: var(--acid); }
+
+    /* ── TOOLBAR ── */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 24px;
+      background: var(--ash);
+      border-bottom: 1px solid var(--gravel);
+    }
+    .search-input {
+      flex: 1;
+      min-width: 180px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+    .search-input:focus { border-color: var(--acid); }
+    .filter-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      font-family: var(--font-ui);
+      font-weight: 600;
+      font-size: 0.8rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 99px;
+      border: 1px solid var(--gravel);
+      color: var(--fog);
+      background: transparent;
+      transition: all 0.2s;
+    }
+    .pill.active, .pill:hover {
+      border-color: var(--acid);
+      color: var(--acid);
+      background: rgba(200,240,0,0.08);
+    }
+
+    /* ── SECTION HEADER ── */
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      padding: 24px 24px 12px;
+      flex-wrap: wrap;
+    }
+    .section-header h2 {
+      font-family: var(--font-head);
+      font-size: 1.4rem;
+      color: var(--bone);
+    }
+    .recipe-count { font-size: 0.85rem; color: var(--fog); }
+    .sort-select {
+      margin-left: auto;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* ── RECIPE GRID ── */
+    .recipe-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+      gap: 20px;
+      padding: 0 24px 64px;
+    }
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--fog);
+    }
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 16px; }
+    .empty-state h3 { font-family: var(--font-head); font-size: 1.4rem; color: var(--bone); margin-bottom: 8px; }
+    .empty-state p { font-size: 0.95rem; }
+
+    /* ── RECIPE CARD ── */
+    .recipe-card {
+      background: var(--ash);
+      border: 1px solid var(--gravel);
+      border-radius: 6px;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .recipe-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+    }
+    .recipe-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 0; height: 3px;
+      background: var(--acid);
+      transition: width 0.25s ease;
+    }
+    .recipe-card:hover::after { width: 100%; }
+
+    .card-img-wrap { position: relative; }
+    .card-image {
+      width: 100%;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+      display: block;
+      clip-path: polygon(
+        0% 0%, 100% 0%, 100% 78%,
+        95% 88%, 90% 76%, 85% 90%,
+        78% 80%, 72% 92%, 65% 82%,
+        58% 95%, 50% 83%, 42% 93%,
+        35% 80%, 28% 90%, 20% 78%,
+        12% 88%, 5% 76%, 0% 85%
+      );
+    }
+    .card-placeholder {
+      width: 100%;
+      aspect-ratio: 4/3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      clip-path: polygon(
+        0% 0%, 100% 0%, 100% 78%,
+        95% 88%, 90% 76%, 85% 90%,
+        78% 80%, 72% 92%, 65% 82%,
+        58% 95%, 50% 83%, 42% 93%,
+        35% 80%, 28% 90%, 20% 78%,
+        12% 88%, 5% 76%, 0% 85%
+      );
+    }
+    .card-placeholder.g0 { background: linear-gradient(135deg, #1a1a2e, #16213e); }
+    .card-placeholder.g1 { background: linear-gradient(135deg, #1a0a0a, #2d1b1b); }
+    .card-placeholder.g2 { background: linear-gradient(135deg, #0a1a0a, #1b2d1b); }
+    .card-placeholder.g3 { background: linear-gradient(135deg, #1a0a1a, #2d1b2d); }
+    .card-placeholder.g4 { background: linear-gradient(135deg, #0a1a1a, #1b2d2d); }
+    .card-placeholder.g5 { background: linear-gradient(135deg, #1a1a0a, #2d2d1b); }
+
+    .category-badge {
+      position: absolute;
+      top: 10px; left: 10px;
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      background: rgba(13,13,13,0.78);
+      border: 1px solid var(--gravel);
+      border-radius: 3px;
+      color: var(--fog);
+      backdrop-filter: blur(4px);
+    }
+
+    .card-body { padding: 14px 16px 18px; }
+    .card-name {
+      font-family: var(--font-head);
+      font-size: 1.05rem;
+      color: var(--bone);
+      margin-bottom: 4px;
+      line-height: 1.2;
+    }
+    .card-desc {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-size: 0.82rem;
+      color: var(--fog);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .card-meta {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      font-size: 0.78rem;
+      color: var(--fog);
+    }
+
+    /* ── SKELETON ── */
+    .skeleton-card {
+      background: var(--ash);
+      border: 1px solid var(--gravel);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .skel {
+      background: var(--smoke);
+      border-radius: 3px;
+      animation: shimmer 1.4s ease-in-out infinite;
+    }
+    .skel-img { width: 100%; aspect-ratio: 4/3; }
+    .skel-body { padding: 14px 16px 18px; }
+    .skel-line { height: 14px; margin-bottom: 8px; }
+    .skel-short { width: 55%; }
+    .skel-xshort { width: 40%; height: 10px; }
+    @keyframes shimmer { 0%,100%{opacity:0.5} 50%{opacity:1} }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--ash);
+      border: 1px solid var(--gravel);
+      border-left: 4px solid var(--acid);
+      color: var(--bone);
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      z-index: 9000;
+      transition: transform 0.3s ease;
+      white-space: nowrap;
+      max-width: 90vw;
+      pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.error { border-left-color: var(--plasma); }
+
+    /* ── MODAL BASE ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 500;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px 16px;
+      overflow-y: auto;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--ash);
+      border: 1px solid var(--gravel);
+      border-radius: 6px;
+      width: 100%;
+      max-width: 700px;
+      position: relative;
+      padding: 36px 32px 32px;
+      margin: auto;
+    }
+    .modal-close {
+      position: absolute;
+      top: 14px; right: 16px;
+      color: var(--fog);
+      font-size: 1.1rem;
+      padding: 4px 8px;
+      transition: color 0.15s;
+      z-index: 1;
+    }
+    .modal-close:hover { color: var(--plasma); }
+
+    /* ── VIEW MODAL ── */
+    .view-modal { max-width: 740px; }
+    .view-hero {
+      width: 100%;
+      max-height: 320px;
+      object-fit: cover;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      display: block;
+    }
+    .view-name {
+      font-family: var(--font-head);
+      font-size: 2rem;
+      color: var(--bone);
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+    .view-category {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--plasma);
+      margin-bottom: 8px;
+    }
+    .view-desc {
+      font-family: var(--font-body);
+      font-style: italic;
+      color: var(--fog);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .stat-bar {
+      display: flex;
+      gap: 28px;
+      padding: 16px 0;
+      border-top: 1px solid var(--gravel);
+      border-bottom: 1px solid var(--gravel);
+      margin-bottom: 28px;
+    }
+    .stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .stat-value { font-family: var(--font-head); font-size: 1.3rem; color: var(--acid); }
+    .stat-label { font-size: 0.72rem; color: var(--fog); text-transform: uppercase; letter-spacing: 0.1em; }
+    .view-section { margin-bottom: 24px; }
+    .section-label {
+      font-family: var(--font-head);
+      font-size: 0.85rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--plasma);
+      margin-bottom: 12px;
+    }
+    .ingredient-list { list-style: none; }
+    .ingredient-list li {
+      padding: 5px 0;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      border-bottom: 1px solid rgba(61,61,61,0.4);
+    }
+    .ingredient-list li::before { content: '✦ '; color: var(--plasma); }
+    .step-item { display: flex; gap: 14px; margin-bottom: 16px; align-items: flex-start; }
+    .step-num {
+      font-family: var(--font-head);
+      font-size: 0.85rem;
+      color: var(--void);
+      background: var(--plasma);
+      min-width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-text {
+      font-family: var(--font-body);
+      font-style: italic;
+      line-height: 1.65;
+      font-size: 0.95rem;
+      padding-top: 3px;
+    }
+    .notes-block {
+      background: var(--smoke);
+      border-left: 3px solid var(--zen);
+      padding: 14px 16px;
+      border-radius: 0 4px 4px 0;
+      font-family: var(--font-body);
+      font-style: italic;
+      color: var(--fog);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    .inspired-by {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: var(--fog);
+    }
+    .inspired-by span { color: var(--zen); }
+    .view-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--gravel);
+      flex-wrap: wrap;
+    }
+    .view-actions button {
+      font-family: var(--font-ui);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      padding: 10px 22px;
+      border-radius: var(--radius);
+      transition: opacity 0.2s, background 0.2s;
+    }
+    #editBtn   { background: var(--acid);   color: var(--void); }
+    #editBtn:hover { opacity: 0.85; }
+    #shareBtn  { background: var(--zen);    color: var(--void); }
+    #shareBtn:hover { opacity: 0.85; }
+    #deleteBtn { background: transparent; border: 1px solid var(--plasma); color: var(--plasma); }
+    #deleteBtn:hover { background: var(--plasma); color: var(--void); }
+
+    /* ── FORM MODAL ── */
+    .form-modal h2 {
+      font-family: var(--font-head);
+      font-size: 1.6rem;
+      margin-bottom: 24px;
+      padding-right: 32px;
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .form-group label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fog);
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      outline: none;
+      width: 100%;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus { border-color: var(--acid); }
+    .form-group textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+    .form-group select option { background: var(--smoke); }
+
+    .list-item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .list-item-row input { flex: 1; }
+    .remove-btn { color: var(--plasma); font-size: 1.2rem; padding: 2px 8px; flex-shrink: 0; line-height: 1; }
+    .remove-btn:hover { opacity: 0.7; }
+    .add-list-item {
+      font-family: var(--font-ui);
+      font-size: 0.82rem;
+      color: var(--zen);
+      text-decoration: underline;
+      padding: 4px 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+    .add-list-item:hover { color: var(--acid); }
+
+    .photo-preview-wrap { margin-top: 8px; }
+    .photo-preview {
+      width: 100%; max-height: 200px;
+      object-fit: cover;
+      border-radius: 4px;
+      display: none;
+    }
+    .photo-preview.visible { display: block; }
+
+    .form-submit {
+      font-family: var(--font-head);
+      font-size: 1rem;
+      color: var(--void);
+      background: var(--acid);
+      padding: 14px 32px;
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+      width: 100%;
+      margin-top: 8px;
+      transition: background 0.2s;
+      letter-spacing: 0.05em;
+    }
+    .form-submit:hover { background: #d8ff10; }
+
+    /* ── CAPTURE MODAL ── */
+    .capture-modal { max-width: 560px; }
+    .capture-modal h2 {
+      font-family: var(--font-head);
+      font-size: 1.4rem;
+      margin-bottom: 20px;
+      padding-right: 32px;
+    }
+    .capture-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 24px;
+      border-bottom: 2px solid var(--gravel);
+    }
+    .tab-btn {
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--fog);
+      padding: 10px 20px;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab-btn.active { color: var(--acid); border-bottom-color: var(--acid); }
+
+    .capture-drop-zone {
+      border: 2px dashed var(--gravel);
+      border-radius: 6px;
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--fog);
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      font-size: 0.95rem;
+    }
+    .capture-drop-zone:hover, .capture-drop-zone.drag-over {
+      border-color: var(--acid);
+      color: var(--acid);
+    }
+    .capture-drop-icon { font-size: 2.5rem; margin-bottom: 8px; }
+
+    .capture-preview {
+      width: 100%; max-height: 240px;
+      object-fit: cover;
+      border-radius: 4px;
+      margin: 12px 0;
+      display: none;
+    }
+    .capture-preview.visible { display: block; }
+
+    .capture-btn-row { display: flex; gap: 10px; margin-top: 12px; }
+    .capture-btn {
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--void);
+      background: var(--acid);
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      flex: 1;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    .capture-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .capture-btn:not(:disabled):hover { background: #d8ff10; }
+    .capture-btn.secondary {
+      background: var(--smoke);
+      color: var(--bone);
+      border: 1px solid var(--gravel);
+    }
+    .capture-btn.secondary:not(:disabled):hover { border-color: var(--acid); color: var(--acid); background: var(--smoke); }
+    .capture-btn.danger {
+      background: var(--plasma);
+      color: var(--void);
+    }
+    .capture-btn.danger:not(:disabled):hover { opacity: 0.85; }
+
+    .voice-status {
+      text-align: center;
+      color: var(--zen);
+      font-size: 1rem;
+      min-height: 36px;
+      margin-top: 16px;
+    }
+    .voice-transcript {
+      background: var(--smoke);
+      border: 1px solid var(--gravel);
+      padding: 12px;
+      border-radius: 4px;
+      min-height: 80px;
+      font-size: 0.9rem;
+      margin-top: 12px;
+      line-height: 1.5;
+      color: var(--bone);
+    }
+    .voice-transcript.empty { color: var(--fog); font-style: italic; }
+
+    .capture-textarea {
+      width: 100%;
+      min-height: 160px;
+      padding: 12px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      border-radius: var(--radius);
+      border: 1px solid var(--gravel);
+      background: var(--smoke);
+      color: var(--bone);
+    }
+    .capture-textarea:focus { border-color: var(--acid); }
+
+    .ai-processing {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--zen);
+      font-size: 0.9rem;
+      margin-top: 12px;
+      min-height: 24px;
+    }
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid var(--gravel);
+      border-top-color: var(--zen);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      header { padding: 0 14px; }
+      .logo { font-size: 1.25rem; }
+      .add-btn { font-size: 0.75rem; padding: 8px 16px 8px 14px; }
+      .toolbar { padding: 12px 14px; }
+      .recipe-grid { padding: 0 14px 64px; }
+      .section-header { padding: 16px 14px 10px; }
+      .modal { padding: 28px 18px 22px; }
+      .view-name { font-size: 1.5rem; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- GRAIN -->
+<div class="grain"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">NOURISH<span>RIOT</span></div>
+  <div class="header-right">
+    <div class="sync-dot syncing" id="syncDot" title="Sync status"></div>
+    <div class="add-wrapper">
+      <button class="add-btn" id="addBtn">+ Add Recipe</button>
+      <div class="add-dropdown" id="addDropdown">
+        <button data-action="photo">📷 Upload / Scan</button>
+        <button data-action="voice">🎙 Voice Dictate</button>
+        <button data-action="text">📝 Paste Text</button>
+        <button data-action="manual">✏️ Type Manually</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <input class="search-input" id="searchInput" placeholder="Search recipes, ingredients…" autocomplete="off" />
+  <div class="filter-pills" id="filterPills"></div>
+</div>
+
+<!-- MAIN -->
+<main>
+  <div class="section-header">
+    <h2 id="sectionTitle">All Recipes</h2>
+    <span class="recipe-count" id="recipeCount"></span>
+    <select class="sort-select" id="sortSelect">
+      <option value="date">Newest First</option>
+      <option value="name">Name A–Z</option>
+    </select>
+  </div>
+  <div class="recipe-grid" id="recipeGrid"></div>
+</main>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- ── VIEW MODAL ── -->
+<div class="modal-overlay" id="viewModal">
+  <div class="modal view-modal">
+    <button class="modal-close" id="viewClose">✕</button>
+    <div id="viewContent"></div>
+    <div class="view-actions">
+      <button id="editBtn">Edit</button>
+      <button id="shareBtn">Share</button>
+      <button id="deleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── FORM MODAL ── -->
+<div class="modal-overlay" id="formModal">
+  <div class="modal form-modal">
+    <button class="modal-close" id="formClose">✕</button>
+    <h2 id="formTitle">Add Recipe</h2>
+    <form id="recipeForm" autocomplete="off">
+
+      <div class="form-group">
+        <label for="f-name">Recipe Name *</label>
+        <input type="text" id="f-name" placeholder="e.g. Crispy Miso Tofu Bowl" required />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="f-category">Category</label>
+          <select id="f-category">
+            <option value="">— select —</option>
+            <option>Breakfast</option>
+            <option>Lunch</option>
+            <option>Dinner</option>
+            <option>Dessert</option>
+            <option>Snack</option>
+            <option>Drinks</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="f-servings">Servings</label>
+          <input type="number" id="f-servings" min="1" max="99" placeholder="4" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="f-prep">Prep Time</label>
+          <input type="text" id="f-prep" placeholder="15 min" />
+        </div>
+        <div class="form-group">
+          <label for="f-cook">Cook Time</label>
+          <input type="text" id="f-cook" placeholder="30 min" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="f-desc">Short Description</label>
+        <textarea id="f-desc" rows="2" placeholder="One line that captures the vibe…"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Ingredients</label>
+        <div id="ingredientsList"></div>
+        <button type="button" class="add-list-item" onclick="addListItem('ingredientsList')">＋ Add Ingredient</button>
+      </div>
+
+      <div class="form-group">
+        <label>Steps</label>
+        <div id="stepsList"></div>
+        <button type="button" class="add-list-item" onclick="addListItem('stepsList')">＋ Add Step</button>
+      </div>
+
+      <div class="form-group">
+        <label for="f-notes">Notes</label>
+        <textarea id="f-notes" rows="3" placeholder="Substitutions, tips, serving suggestions…"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="f-inspired">Inspired By</label>
+        <input type="text" id="f-inspired" placeholder="e.g. Yotam Ottolenghi" />
+      </div>
+
+      <div class="form-group">
+        <label for="f-photo">Photo</label>
+        <input type="file" id="f-photo" accept="image/jpeg,image/png,image/gif,image/webp" />
+        <div class="photo-preview-wrap">
+          <img class="photo-preview" id="photoPreview" alt="Preview" />
+        </div>
+      </div>
+
+      <button type="submit" class="form-submit">Save Recipe</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── CAPTURE MODAL ── -->
+<div class="modal-overlay" id="captureModal">
+  <div class="modal capture-modal">
+    <button class="modal-close" id="captureClose">✕</button>
+    <h2>Capture Recipe</h2>
+    <div class="capture-tabs" id="captureTabs">
+      <button class="tab-btn active" data-tab="photo">📷 Photo</button>
+      <button class="tab-btn" data-tab="voice">🎙 Voice</button>
+      <button class="tab-btn" data-tab="text">📝 Text</button>
+    </div>
+    <div id="captureBody"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// ── CONFIG
+// ═══════════════════════════════════════════════
+const CONFIG = {
+  SUPABASE_URL:  window.APP_CONFIG?.SUPABASE_URL  || '',
+  SUPABASE_KEY:  window.APP_CONFIG?.SUPABASE_KEY  || '',
+  ANTHROPIC_KEY: window.APP_CONFIG?.ANTHROPIC_KEY || '',
+  BUCKET:        'recipe-photos',
+  MODEL:         'claude-sonnet-4-20250514',
+};
+
+// ═══════════════════════════════════════════════
+// ── SUPABASE CLIENT
+// ═══════════════════════════════════════════════
+const { createClient } = supabase;
+const db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+
+// ═══════════════════════════════════════════════
+// ── STATE
+// ═══════════════════════════════════════════════
+const state = {
+  recipes:         [],
+  activeFilter:    'All',
+  searchQuery:     '',
+  sortMode:        'date',
+  viewingId:       null,
+  editingId:       null,
+  captureTab:      'photo',
+  pendingPhotoFile: null,
+  capturePendingFile: null,
+  recognition:     null,
+  isRecording:     false,
+  voiceTranscript: '',
+  lastSavedId:     null,
+  lastSavedTime:   0,
+};
+
+// ═══════════════════════════════════════════════
+// ── CONSTANTS
+// ═══════════════════════════════════════════════
+const CATEGORIES = ['All','Breakfast','Lunch','Dinner','Dessert','Snack','Drinks'];
+const CATEGORY_EMOJI = {
+  All:'🍴', Breakfast:'🌅', Lunch:'🥗', Dinner:'🍽️',
+  Dessert:'🍰', Snack:'🫙', Drinks:'🍵',
+};
+
+// ═══════════════════════════════════════════════
+// ── HELPERS
+// ═══════════════════════════════════════════════
+function newId() {
+  return crypto.randomUUID?.() ??
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
+function gradientIndex(id) {
+  let sum = 0;
+  for (let i = 0; i < id.length; i++) sum += id.charCodeAt(i);
+  return sum % 6;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ── Data mapping
+function fromRow(row) {
+  return {
+    id:          row.id,
+    name:        row.name,
+    category:    row.category || '',
+    desc:        row.desc || '',
+    prep:        row.prep || '',
+    cook:        row.cook || '',
+    servings:    row.servings || null,
+    ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
+    steps:       Array.isArray(row.steps) ? row.steps : [],
+    notes:       row.notes || '',
+    inspiredBy:  row.inspired_by || '',
+    photoUrl:    row.photo_url || '',
+    dateAdded:   row.date_added || row.created_at?.split('T')[0] || today(),
+    dateModified:row.date_modified || today(),
+    createdAt:   row.created_at || '',
+  };
+}
+
+function toRow(r) {
+  return {
+    id:           r.id,
+    name:         r.name,
+    category:     r.category || null,
+    desc:         r.desc || null,
+    prep:         r.prep || null,
+    cook:         r.cook || null,
+    servings:     r.servings ? parseInt(r.servings) : null,
+    ingredients:  r.ingredients || [],
+    steps:        r.steps || [],
+    notes:        r.notes || null,
+    inspired_by:  r.inspiredBy || null,
+    photo_url:    r.photoUrl || null,
+    date_added:   r.dateAdded || today(),
+    date_modified:today(),
+  };
+}
+
+// ── Sync dot
+function setSyncState(s) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot ' + s;
+}
+
+// ── Toast
+let toastTimer = null;
+function showToast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (isError ? ' error' : '');
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// ── Debounce
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// ═══════════════════════════════════════════════
+// ── SUPABASE HELPERS
+// ═══════════════════════════════════════════════
+async function loadRecipes() {
+  setSyncState('syncing');
+  try {
+    const { data, error } = await db
+      .from('recipes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    state.recipes = (data || []).map(fromRow);
+    renderGrid();
+    setSyncState('synced');
+  } catch (err) {
+    console.error('loadRecipes:', err);
+    setSyncState('error');
+    showToast('Failed to load recipes: ' + err.message, true);
+  }
+}
+
+function subscribeRealtime() {
+  db.channel('recipes-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'recipes' }, handleRealtimeChange)
+    .subscribe(status => {
+      if (status === 'SUBSCRIBED') setSyncState('synced');
+    });
+}
+
+function handleRealtimeChange(payload) {
+  const now = Date.now();
+  // Suppress echo of our own saves for 2s
+  if (state.lastSavedId &&
+      payload.new?.id === state.lastSavedId &&
+      now - state.lastSavedTime < 2000) return;
+
+  if (payload.eventType === 'INSERT') {
+    const exists = state.recipes.find(r => r.id === payload.new.id);
+    if (!exists) state.recipes.unshift(fromRow(payload.new));
+  } else if (payload.eventType === 'UPDATE') {
+    const idx = state.recipes.findIndex(r => r.id === payload.new.id);
+    if (idx !== -1) state.recipes[idx] = fromRow(payload.new);
+    else state.recipes.unshift(fromRow(payload.new));
+  } else if (payload.eventType === 'DELETE') {
+    state.recipes = state.recipes.filter(r => r.id !== payload.old.id);
+  }
+  renderGrid();
+}
+
+async function saveRecipeToDB(recipe) {
+  const { error } = await db.from('recipes').upsert(toRow(recipe));
+  if (error) throw error;
+  state.lastSavedId = recipe.id;
+  state.lastSavedTime = Date.now();
+}
+
+async function deleteRecipeFromDB(id) {
+  const { error } = await db.from('recipes').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ═══════════════════════════════════════════════
+// ── PHOTO HELPERS
+// ═══════════════════════════════════════════════
+async function uploadPhoto(file) {
+  const ext = file.name.split('.').pop() || 'jpg';
+  const path = `${Date.now()}_${newId().slice(0,8)}.${ext}`;
+  const { error } = await db.storage.from(CONFIG.BUCKET).upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = db.storage.from(CONFIG.BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+async function deletePhoto(url) {
+  if (!url) return;
+  try {
+    const parts = url.split('/recipe-photos/');
+    if (parts.length < 2) return;
+    const path = parts[1];
+    await db.storage.from(CONFIG.BUCKET).remove([path]);
+  } catch (e) {
+    console.warn('deletePhoto failed:', e);
+  }
+}
+
+async function compressImage(file, maxPx = 1600, quality = 0.85) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxPx || height > maxPx) {
+        if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+        else { width = Math.round(width * maxPx / height); height = maxPx; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => resolve(blob || file), 'image/jpeg', quality);
+    };
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+}
+
+async function fileToBase64(file) {
+  const compressed = await compressImage(file);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(compressed);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// ── RENDER
+// ═══════════════════════════════════════════════
+function renderSkeletons(n = 6) {
+  const grid = document.getElementById('recipeGrid');
+  grid.innerHTML = Array.from({length: n}, () => `
+    <div class="skeleton-card">
+      <div class="skel skel-img"></div>
+      <div class="skel-body">
+        <div class="skel skel-line"></div>
+        <div class="skel skel-line skel-short"></div>
+        <div class="skel skel-line skel-xshort" style="margin-top:10px"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderPills() {
+  const container = document.getElementById('filterPills');
+  container.innerHTML = CATEGORIES.map(cat => `
+    <button class="pill${state.activeFilter === cat ? ' active' : ''}" data-cat="${cat}">
+      ${cat}
+    </button>
+  `).join('');
+}
+
+function getFilteredSorted() {
+  let list = state.recipes.slice();
+
+  // Category filter
+  if (state.activeFilter !== 'All') {
+    list = list.filter(r => r.category === state.activeFilter);
+  }
+
+  // Search
+  if (state.searchQuery) {
+    const q = state.searchQuery.toLowerCase();
+    list = list.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      r.category.toLowerCase().includes(q) ||
+      r.ingredients.join(' ').toLowerCase().includes(q) ||
+      r.desc.toLowerCase().includes(q)
+    );
+  }
+
+  // Sort
+  if (state.sortMode === 'name') {
+    list.sort((a, b) => a.name.localeCompare(b.name));
+  } else {
+    list.sort((a, b) => {
+      const da = a.createdAt || a.dateAdded || '';
+      const db2 = b.createdAt || b.dateAdded || '';
+      return da < db2 ? 1 : da > db2 ? -1 : 0;
+    });
+  }
+
+  return list;
+}
+
+function renderGrid() {
+  const list = getFilteredSorted();
+  const grid = document.getElementById('recipeGrid');
+  const title = document.getElementById('sectionTitle');
+  const count = document.getElementById('recipeCount');
+
+  title.textContent = state.activeFilter === 'All' ? 'All Recipes' : state.activeFilter;
+  count.textContent = list.length === 1 ? '1 recipe' : `${list.length} recipes`;
+
+  if (list.length === 0) {
+    const msg = state.searchQuery || state.activeFilter !== 'All'
+      ? 'No recipes match your search.'
+      : 'No recipes yet. Add your first one!';
+    grid.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🍴</div>
+        <h3>Nothing here yet</h3>
+        <p>${msg}</p>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(buildCardHTML).join('');
+}
+
+function buildCardHTML(r) {
+  const g = gradientIndex(r.id);
+  const emoji = CATEGORY_EMOJI[r.category] || '🍴';
+  const imgHtml = r.photoUrl
+    ? `<img class="card-image" src="${escapeHtml(r.photoUrl)}" alt="${escapeHtml(r.name)}" loading="lazy" />`
+    : `<div class="card-placeholder g${g}">${emoji}</div>`;
+
+  const meta = [
+    r.prep ? `⏱ ${escapeHtml(r.prep)}` : '',
+    r.cook ? `🔥 ${escapeHtml(r.cook)}` : '',
+    r.servings ? `👤 ${r.servings}` : '',
+  ].filter(Boolean).join(' · ');
+
+  return `
+    <div class="recipe-card" data-id="${escapeHtml(r.id)}">
+      <div class="card-img-wrap">
+        ${imgHtml}
+        ${r.category ? `<span class="category-badge">${escapeHtml(r.category)}</span>` : ''}
+      </div>
+      <div class="card-body">
+        <div class="card-name">${escapeHtml(r.name)}</div>
+        ${r.desc ? `<div class="card-desc">${escapeHtml(r.desc)}</div>` : ''}
+        ${meta ? `<div class="card-meta">${meta}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// ── VIEW MODAL
+// ═══════════════════════════════════════════════
+function openView(id) {
+  const recipe = state.recipes.find(r => r.id === id);
+  if (!recipe) return;
+  state.viewingId = id;
+
+  document.getElementById('viewContent').innerHTML = buildViewHTML(recipe);
+  openModal('viewModal');
+}
+
+function buildViewHTML(r) {
+  const heroHtml = r.photoUrl
+    ? `<img class="view-hero" src="${escapeHtml(r.photoUrl)}" alt="${escapeHtml(r.name)}" />`
+    : '';
+
+  const statBar = [
+    r.prep     ? `<div class="stat-item"><span class="stat-value">${escapeHtml(r.prep)}</span><span class="stat-label">Prep</span></div>` : '',
+    r.cook     ? `<div class="stat-item"><span class="stat-value">${escapeHtml(r.cook)}</span><span class="stat-label">Cook</span></div>` : '',
+    r.servings ? `<div class="stat-item"><span class="stat-value">${r.servings}</span><span class="stat-label">Serves</span></div>` : '',
+  ].filter(Boolean).join('');
+
+  const ingredients = r.ingredients.length
+    ? `<div class="view-section">
+        <div class="section-label">Ingredients</div>
+        <ul class="ingredient-list">
+          ${r.ingredients.map(i => `<li>${escapeHtml(i)}</li>`).join('')}
+        </ul>
+      </div>` : '';
+
+  const steps = r.steps.length
+    ? `<div class="view-section">
+        <div class="section-label">Steps</div>
+        ${r.steps.map((s, i) => `
+          <div class="step-item">
+            <div class="step-num">${i + 1}</div>
+            <div class="step-text">${escapeHtml(s)}</div>
+          </div>`).join('')}
+      </div>` : '';
+
+  const notes = r.notes
+    ? `<div class="view-section">
+        <div class="section-label">Notes</div>
+        <div class="notes-block">${escapeHtml(r.notes)}</div>
+      </div>` : '';
+
+  const inspiredBy = r.inspiredBy
+    ? `<div class="inspired-by">Inspired by <span>${escapeHtml(r.inspiredBy)}</span></div>` : '';
+
+  return `
+    ${heroHtml}
+    ${r.category ? `<div class="view-category">${escapeHtml(r.category)}</div>` : ''}
+    <h2 class="view-name">${escapeHtml(r.name)}</h2>
+    ${r.desc ? `<div class="view-desc">${escapeHtml(r.desc)}</div>` : ''}
+    ${statBar ? `<div class="stat-bar">${statBar}</div>` : ''}
+    ${ingredients}
+    ${steps}
+    ${notes}
+    ${inspiredBy}
+  `;
+}
+
+function shareRecipe(id) {
+  const r = state.recipes.find(x => x.id === id);
+  if (!r) return;
+
+  const text = [
+    r.name.toUpperCase(),
+    r.category,
+    r.prep && r.cook ? `Prep: ${r.prep} · Cook: ${r.cook}` : (r.prep || r.cook || ''),
+    r.servings ? `Serves: ${r.servings}` : '',
+    '',
+    r.desc,
+    '',
+    'INGREDIENTS',
+    ...r.ingredients.map(i => `• ${i}`),
+    '',
+    'STEPS',
+    ...r.steps.map((s, i) => `${i + 1}. ${s}`),
+    r.notes ? `\nNOTES\n${r.notes}` : '',
+    r.inspiredBy ? `\nInspired by: ${r.inspiredBy}` : '',
+  ].filter(s => s !== null && s !== undefined).join('\n').trim();
+
+  if (navigator.share) {
+    navigator.share({ title: r.name, text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('Recipe copied to clipboard!'))
+      .catch(() => showToast('Could not copy to clipboard', true));
+  }
+}
+
+async function deleteRecipe(id) {
+  const r = state.recipes.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`Delete "${r.name}"? This cannot be undone.`)) return;
+
+  closeModal('viewModal');
+  try {
+    if (r.photoUrl) await deletePhoto(r.photoUrl);
+    await deleteRecipeFromDB(id);
+    state.recipes = state.recipes.filter(x => x.id !== id);
+    renderGrid();
+    showToast(`"${r.name}" deleted.`);
+  } catch (err) {
+    showToast('Delete failed: ' + err.message, true);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ── FORM MODAL
+// ═══════════════════════════════════════════════
+function openForm(id = null, prefillData = null) {
+  state.editingId = id;
+  state.pendingPhotoFile = null;
+
+  const title = document.getElementById('formTitle');
+  title.textContent = id ? 'Edit Recipe' : 'Add Recipe';
+
+  // Reset form
+  document.getElementById('recipeForm').reset();
+  document.getElementById('ingredientsList').innerHTML = '';
+  document.getElementById('stepsList').innerHTML = '';
+  document.getElementById('photoPreview').classList.remove('visible');
+  document.getElementById('photoPreview').src = '';
+
+  let data = prefillData;
+
+  if (id && !prefillData) {
+    data = state.recipes.find(r => r.id === id);
+  }
+
+  if (data) {
+    setVal('f-name', data.name || '');
+    setVal('f-category', data.category || '');
+    setVal('f-servings', data.servings || '');
+    setVal('f-prep', data.prep || '');
+    setVal('f-cook', data.cook || '');
+    setVal('f-desc', data.desc || '');
+    setVal('f-notes', data.notes || '');
+    setVal('f-inspired', data.inspiredBy || '');
+
+    if (data.photoUrl) {
+      const prev = document.getElementById('photoPreview');
+      prev.src = data.photoUrl;
+      prev.classList.add('visible');
+    }
+
+    (data.ingredients || []).forEach(v => addListItem('ingredientsList', v));
+    (data.steps || []).forEach(v => addListItem('stepsList', v));
+  }
+
+  // Ensure at least one row each
+  if (!document.querySelector('#ingredientsList .list-item-row')) addListItem('ingredientsList');
+  if (!document.querySelector('#stepsList .list-item-row')) addListItem('stepsList');
+
+  openModal('formModal');
+}
+
+function setVal(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val ?? '';
+}
+
+function addListItem(listId, value = '') {
+  const list = document.getElementById(listId);
+  const row = document.createElement('div');
+  row.className = 'list-item-row';
+  const isStep = listId === 'stepsList';
+  row.innerHTML = `
+    <input type="text" placeholder="${isStep ? 'Describe this step…' : 'e.g. 2 cups flour'}" value="${escapeHtml(String(value))}" />
+    <button type="button" class="remove-btn" onclick="removeListItem(this)">×</button>
+  `;
+  list.appendChild(row);
+}
+
+function removeListItem(btn) {
+  const row = btn.closest('.list-item-row');
+  const list = row.parentElement;
+  if (list.querySelectorAll('.list-item-row').length > 1) {
+    row.remove();
+  } else {
+    row.querySelector('input').value = '';
+  }
+}
+
+function getListValues(listId) {
+  return Array.from(
+    document.querySelectorAll(`#${listId} .list-item-row input`)
+  ).map(i => i.value.trim()).filter(Boolean);
+}
+
+function collectFormData() {
+  return {
+    name:        document.getElementById('f-name').value.trim(),
+    category:    document.getElementById('f-category').value,
+    servings:    parseInt(document.getElementById('f-servings').value) || null,
+    prep:        document.getElementById('f-prep').value.trim(),
+    cook:        document.getElementById('f-cook').value.trim(),
+    desc:        document.getElementById('f-desc').value.trim(),
+    notes:       document.getElementById('f-notes').value.trim(),
+    inspiredBy:  document.getElementById('f-inspired').value.trim(),
+    ingredients: getListValues('ingredientsList'),
+    steps:       getListValues('stepsList'),
+  };
+}
+
+async function saveRecipe(e) {
+  e.preventDefault();
+  const data = collectFormData();
+  if (!data.name) { showToast('Recipe name is required.', true); return; }
+
+  const btn = document.querySelector('.form-submit');
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+
+  try {
+    const isNew = !state.editingId;
+    const existingRecipe = isNew ? null : state.recipes.find(r => r.id === state.editingId);
+
+    const recipe = {
+      id:          isNew ? newId() : state.editingId,
+      dateAdded:   isNew ? today() : (existingRecipe?.dateAdded || today()),
+      dateModified:today(),
+      photoUrl:    existingRecipe?.photoUrl || '',
+      ...data,
+    };
+
+    // Upload new photo if selected
+    if (state.pendingPhotoFile) {
+      if (existingRecipe?.photoUrl) await deletePhoto(existingRecipe.photoUrl);
+      recipe.photoUrl = await uploadPhoto(state.pendingPhotoFile);
+      state.pendingPhotoFile = null;
+    }
+
+    await saveRecipeToDB(recipe);
+
+    // Update local state
+    if (isNew) {
+      state.recipes.unshift(recipe);
+    } else {
+      const idx = state.recipes.findIndex(r => r.id === recipe.id);
+      if (idx !== -1) state.recipes[idx] = recipe;
+    }
+
+    closeModal('formModal');
+    renderGrid();
+    showToast(isNew ? `"${recipe.name}" saved!` : `"${recipe.name}" updated!`);
+  } catch (err) {
+    console.error('saveRecipe:', err);
+    showToast('Save failed: ' + err.message, true);
+  } finally {
+    btn.textContent = 'Save Recipe';
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ── CAPTURE MODAL
+// ═══════════════════════════════════════════════
+function openCapture(tab) {
+  state.captureTab = tab;
+  state.capturePendingFile = null;
+  state.voiceTranscript = '';
+  openModal('captureModal');
+  switchCaptureTab(tab);
+}
+
+function switchCaptureTab(tab) {
+  state.captureTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  stopVoice();
+  if (tab === 'photo') renderPhotoTab();
+  else if (tab === 'voice') renderVoiceTab();
+  else renderTextTab();
+}
+
+// ── Photo tab
+function renderPhotoTab() {
+  document.getElementById('captureBody').innerHTML = `
+    <div class="capture-drop-zone" id="dropZone">
+      <div class="capture-drop-icon">📷</div>
+      <div>Drag &amp; drop an image, or</div>
+      <div style="margin-top:6px;font-size:0.85rem;color:var(--fog)">JPEG · PNG · WebP · GIF</div>
+    </div>
+    <img class="capture-preview" id="capturePreview" alt="Preview" />
+    <div class="capture-btn-row">
+      <button class="capture-btn secondary" id="chooseFileBtn">📂 Choose File</button>
+      <button class="capture-btn secondary" id="cameraBtn">📸 Camera</button>
+    </div>
+    <input type="file" id="captureFileInput" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" />
+    <div class="capture-btn-row" style="margin-top:8px">
+      <button class="capture-btn" id="extractPhotoBtn" disabled>✨ Extract Recipe</button>
+    </div>
+    <div class="ai-processing" id="aiStatus" style="display:none">
+      <div class="spinner"></div><span>Extracting recipe…</span>
+    </div>
+  `;
+
+  const dropZone  = document.getElementById('dropZone');
+  const fileInput = document.getElementById('captureFileInput');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handlePhotoFile(file);
+  });
+
+  document.getElementById('chooseFileBtn').addEventListener('click', () => fileInput.click());
+  document.getElementById('cameraBtn').addEventListener('click', openCamera);
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handlePhotoFile(fileInput.files[0]);
+  });
+
+  document.getElementById('extractPhotoBtn').addEventListener('click', extractFromPhoto);
+}
+
+function handlePhotoFile(file) {
+  const supported = ['image/jpeg','image/png','image/gif','image/webp'];
+  if (!supported.includes(file.type)) {
+    showToast('Unsupported format. Please use JPEG, PNG, WebP, or GIF.', true);
+    return;
+  }
+  state.capturePendingFile = file;
+  const preview = document.getElementById('capturePreview');
+  if (preview) {
+    preview.src = URL.createObjectURL(file);
+    preview.classList.add('visible');
+  }
+  const btn = document.getElementById('extractPhotoBtn');
+  if (btn) btn.disabled = false;
+}
+
+async function openCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.style.cssText = 'width:100%;border-radius:4px;margin-top:8px;';
+
+    const body = document.getElementById('captureBody');
+    const existing = body.querySelector('video');
+    if (existing) existing.remove();
+    body.insertBefore(video, body.querySelector('.capture-btn-row'));
+
+    // Replace camera btn with Snap button
+    const cameraBtn = document.getElementById('cameraBtn');
+    cameraBtn.textContent = '📸 Snap';
+    cameraBtn.onclick = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      stream.getTracks().forEach(t => t.stop());
+      video.remove();
+      canvas.toBlob(blob => {
+        if (blob) handlePhotoFile(new File([blob], 'camera.jpg', { type: 'image/jpeg' }));
+      }, 'image/jpeg', 0.9);
+      cameraBtn.textContent = '📸 Camera';
+      cameraBtn.onclick = openCamera;
+    };
+  } catch (err) {
+    showToast('Camera access denied or unavailable.', true);
+  }
+}
+
+async function extractFromPhoto() {
+  if (!state.capturePendingFile) return;
+  const btn = document.getElementById('extractPhotoBtn');
+  const aiStatus = document.getElementById('aiStatus');
+  btn.disabled = true;
+  aiStatus.style.display = 'flex';
+  try {
+    const b64 = await fileToBase64(state.capturePendingFile);
+    const result = await aiParse('image', b64, 'image/jpeg');
+    prefillForm(result, state.capturePendingFile);
+  } catch (err) {
+    showToast('Extraction failed: ' + err.message, true);
+    btn.disabled = false;
+    aiStatus.style.display = 'none';
+  }
+}
+
+// ── Voice tab
+function renderVoiceTab() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    document.getElementById('captureBody').innerHTML = `
+      <div style="text-align:center;padding:32px 16px;color:var(--fog)">
+        <div style="font-size:2rem;margin-bottom:12px">🎙</div>
+        <p style="margin-bottom:12px">Voice dictation requires Chrome or Edge.</p>
+        <p>Use the <strong style="color:var(--bone)">Text</strong> tab to paste a recipe instead.</p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('captureBody').innerHTML = `
+    <div style="text-align:center;padding:8px 0 16px">
+      <button class="capture-btn" id="micBtn" style="max-width:220px">🎙 Start Recording</button>
+    </div>
+    <div class="voice-status" id="voiceStatus"></div>
+    <div class="voice-transcript empty" id="voiceTranscriptEl">Your transcript will appear here…</div>
+    <div class="capture-btn-row" style="margin-top:14px">
+      <button class="capture-btn" id="extractVoiceBtn" disabled>✨ Extract Recipe</button>
+    </div>
+    <div class="ai-processing" id="aiStatusVoice" style="display:none">
+      <div class="spinner"></div><span>Extracting recipe…</span>
+    </div>
+  `;
+
+  document.getElementById('micBtn').addEventListener('click', toggleVoice);
+  document.getElementById('extractVoiceBtn').addEventListener('click', extractFromVoice);
+}
+
+function toggleVoice() {
+  if (state.isRecording) stopVoice();
+  else startVoice();
+}
+
+function startVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
+
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+  state.recognition = recognition;
+  state.isRecording = true;
+  state.voiceTranscript = '';
+
+  recognition.onstart = () => {
+    const statusEl = document.getElementById('voiceStatus');
+    const micBtn   = document.getElementById('micBtn');
+    if (statusEl) statusEl.textContent = '⏺ Listening…';
+    if (micBtn) { micBtn.textContent = '⏹ Stop'; micBtn.classList.add('danger'); }
+  };
+
+  recognition.onresult = (e) => {
+    let interim = '';
+    let final = '';
+    for (let i = 0; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t + ' ';
+      else interim += t;
+    }
+    state.voiceTranscript = final;
+    const el = document.getElementById('voiceTranscriptEl');
+    if (el) {
+      el.textContent = (final + interim) || 'Listening…';
+      el.classList.remove('empty');
+    }
+  };
+
+  recognition.onend = () => {
+    state.isRecording = false;
+    const statusEl  = document.getElementById('voiceStatus');
+    const micBtn    = document.getElementById('micBtn');
+    const extractBtn= document.getElementById('extractVoiceBtn');
+    if (statusEl) statusEl.textContent = state.voiceTranscript ? '✓ Transcript ready' : '';
+    if (micBtn) { micBtn.textContent = '🎙 Start Recording'; micBtn.classList.remove('danger'); }
+    if (extractBtn) extractBtn.disabled = !state.voiceTranscript.trim();
+  };
+
+  recognition.onerror = (e) => {
+    state.isRecording = false;
+    showToast('Mic error: ' + e.error, true);
+  };
+
+  recognition.start();
+}
+
+function stopVoice() {
+  if (state.recognition) {
+    state.recognition.stop();
+    state.recognition = null;
+  }
+  state.isRecording = false;
+}
+
+async function extractFromVoice() {
+  const transcript = state.voiceTranscript.trim();
+  if (!transcript) return;
+  const btn = document.getElementById('extractVoiceBtn');
+  const aiStatus = document.getElementById('aiStatusVoice');
+  btn.disabled = true;
+  aiStatus.style.display = 'flex';
+  try {
+    const result = await aiParse('text', transcript);
+    prefillForm(result, null);
+  } catch (err) {
+    showToast('Extraction failed: ' + err.message, true);
+    btn.disabled = false;
+    aiStatus.style.display = 'none';
+  }
+}
+
+// ── Text tab
+function renderTextTab() {
+  document.getElementById('captureBody').innerHTML = `
+    <textarea class="capture-textarea" id="pasteArea" placeholder="Paste any recipe text here — from a website, email, message, notes app, anywhere…"></textarea>
+    <div class="capture-btn-row" style="margin-top:12px">
+      <button class="capture-btn" id="extractTextBtn">✨ Extract Recipe</button>
+    </div>
+    <div class="ai-processing" id="aiStatusText" style="display:none">
+      <div class="spinner"></div><span>Extracting recipe…</span>
+    </div>
+  `;
+
+  document.getElementById('extractTextBtn').addEventListener('click', extractFromText);
+}
+
+async function extractFromText() {
+  const text = document.getElementById('pasteArea').value.trim();
+  if (!text) { showToast('Paste some recipe text first.', true); return; }
+  const btn = document.getElementById('extractTextBtn');
+  const aiStatus = document.getElementById('aiStatusText');
+  btn.disabled = true;
+  aiStatus.style.display = 'flex';
+  try {
+    const result = await aiParse('text', text);
+    prefillForm(result, null);
+  } catch (err) {
+    showToast('Extraction failed: ' + err.message, true);
+    btn.disabled = false;
+    aiStatus.style.display = 'none';
+  }
+}
+
+function prefillForm(data, photoFile) {
+  state.capturePendingFile = null;
+  stopVoice();
+  closeModal('captureModal');
+
+  // If we have a photo file from the capture, pre-stage it
+  if (photoFile) {
+    state.pendingPhotoFile = photoFile;
+  }
+
+  openForm(null, data);
+
+  // If pending photo file, show preview in form
+  if (photoFile) {
+    const prev = document.getElementById('photoPreview');
+    if (prev) {
+      prev.src = URL.createObjectURL(photoFile);
+      prev.classList.add('visible');
+    }
+  }
+
+  showToast('Recipe extracted! Review and save.');
+}
+
+// ═══════════════════════════════════════════════
+// ── ANTHROPIC AI
+// ═══════════════════════════════════════════════
+const AI_SYSTEM = `You are a recipe extraction assistant. The user will provide a recipe via image or text.
+Extract the recipe and return ONLY a valid JSON object with these exact keys:
+name (string), category (one of: Breakfast, Lunch, Dinner, Dessert, Snack, Drinks, or null),
+desc (string, one-line description), prep (string, e.g. "15 min"), cook (string),
+servings (integer or null), ingredients (array of strings), steps (array of strings),
+notes (string or null), inspiredBy (string or null).
+If a field cannot be determined, use null. Return no other text, no markdown fences, no explanation.`;
+
+async function aiParse(type, content, mediaType = 'image/jpeg') {
+  if (!CONFIG.ANTHROPIC_KEY || CONFIG.ANTHROPIC_KEY === 'YOUR_ANTHROPIC_API_KEY') {
+    throw new Error('Anthropic API key not configured. Add it to CONFIG.ANTHROPIC_KEY.');
+  }
+
+  let messages;
+  if (type === 'image') {
+    messages = [{
+      role: 'user',
+      content: [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: mediaType,
+            data: content,
+          },
+        },
+        { type: 'text', text: 'Extract the recipe from this image. Return only JSON.' },
+      ],
+    }];
+  } else {
+    messages = [{
+      role: 'user',
+      content: `Extract this recipe and return only JSON:\n\n${content}`,
+    }];
+  }
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': CONFIG.ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: CONFIG.MODEL,
+      max_tokens: 2048,
+      system: AI_SYSTEM,
+      messages,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `API error ${response.status}`);
+  }
+
+  const json = await response.json();
+  const raw = json.content?.[0]?.text?.trim();
+  if (!raw) throw new Error('Empty response from AI');
+
+  // Strip markdown fences if present despite instructions
+  const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    // Normalize null strings
+    Object.keys(parsed).forEach(k => {
+      if (parsed[k] === 'null') parsed[k] = null;
+    });
+    return parsed;
+  } catch {
+    throw new Error('AI returned invalid JSON. Try again or use manual entry.');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ── MODAL HELPERS
+// ═══════════════════════════════════════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  // Only restore scroll if no other modals open
+  const anyOpen = document.querySelector('.modal-overlay.open');
+  if (!anyOpen) document.body.style.overflow = '';
+}
+
+// ═══════════════════════════════════════════════
+// ── EVENT WIRING
+// ═══════════════════════════════════════════════
+function wireEvents() {
+  // Add button → dropdown
+  document.getElementById('addBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('addDropdown').classList.toggle('open');
+  });
+
+  // Dropdown options
+  document.getElementById('addDropdown').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    document.getElementById('addDropdown').classList.remove('open');
+    const action = btn.dataset.action;
+    if (action === 'manual') openForm();
+    else openCapture(action);
+  });
+
+  // Close dropdown on outside click
+  document.addEventListener('click', () => {
+    document.getElementById('addDropdown').classList.remove('open');
+  });
+
+  // Search
+  const doSearch = debounce((val) => {
+    state.searchQuery = val;
+    renderGrid();
+  }, 250);
+  document.getElementById('searchInput').addEventListener('input', (e) => doSearch(e.target.value));
+
+  // Filter pills (delegated)
+  document.getElementById('filterPills').addEventListener('click', (e) => {
+    const pill = e.target.closest('.pill');
+    if (!pill) return;
+    state.activeFilter = pill.dataset.cat;
+    renderPills();
+    renderGrid();
+  });
+
+  // Sort
+  document.getElementById('sortSelect').addEventListener('change', (e) => {
+    state.sortMode = e.target.value;
+    renderGrid();
+  });
+
+  // Grid click → view (delegated)
+  document.getElementById('recipeGrid').addEventListener('click', (e) => {
+    const card = e.target.closest('.recipe-card');
+    if (card) openView(card.dataset.id);
+  });
+
+  // View modal
+  document.getElementById('viewClose').addEventListener('click', () => closeModal('viewModal'));
+  document.getElementById('editBtn').addEventListener('click', () => {
+    closeModal('viewModal');
+    openForm(state.viewingId);
+  });
+  document.getElementById('shareBtn').addEventListener('click', () => shareRecipe(state.viewingId));
+  document.getElementById('deleteBtn').addEventListener('click', () => deleteRecipe(state.viewingId));
+
+  // View modal overlay click
+  document.getElementById('viewModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeModal('viewModal');
+  });
+
+  // Form modal
+  document.getElementById('formClose').addEventListener('click', () => closeModal('formModal'));
+  document.getElementById('formModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeModal('formModal');
+  });
+  document.getElementById('recipeForm').addEventListener('submit', saveRecipe);
+
+  // Photo preview in form
+  document.getElementById('f-photo').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    state.pendingPhotoFile = file;
+    const prev = document.getElementById('photoPreview');
+    prev.src = URL.createObjectURL(file);
+    prev.classList.add('visible');
+  });
+
+  // Capture modal
+  document.getElementById('captureClose').addEventListener('click', () => {
+    stopVoice();
+    closeModal('captureModal');
+  });
+  document.getElementById('captureModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) { stopVoice(); closeModal('captureModal'); }
+  });
+
+  // Capture tabs (delegated)
+  document.getElementById('captureTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tab-btn');
+    if (btn) switchCaptureTab(btn.dataset.tab);
+  });
+
+  // Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('captureModal').classList.contains('open')) {
+      stopVoice(); closeModal('captureModal');
+    } else if (document.getElementById('formModal').classList.contains('open')) {
+      closeModal('formModal');
+    } else if (document.getElementById('viewModal').classList.contains('open')) {
+      closeModal('viewModal');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// ── INIT
+// ═══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  renderSkeletons();
+  renderPills();
+  wireEvents();
+
+  if (!CONFIG.SUPABASE_URL || CONFIG.SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    // Demo mode — no real DB
+    setSyncState('error');
+    document.getElementById('recipeGrid').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">⚙️</div>
+        <h3>Configure Your Keys</h3>
+        <p>Open <code>index.html</code> and fill in <code>CONFIG.SUPABASE_URL</code>,
+           <code>CONFIG.SUPABASE_KEY</code>, and <code>CONFIG.ANTHROPIC_KEY</code>.</p>
+      </div>`;
+    return;
+  }
+
+  await loadRecipes();
+  subscribeRealtime();
+});
+</script>
+</body>
+</html>

@@ -2189,7 +2189,11 @@ function isAuthed() {
   return !!netlifyIdentity.currentUser();
 }
 
+let appStarted = false;
 async function showApp() {
+  if (appStarted) return;
+  appStarted = true;
+
   document.getElementById('loginScreen').classList.add('hidden');
 
   // Wire UI first — before any async work so the app is immediately interactive
@@ -2214,13 +2218,13 @@ async function showApp() {
     try { db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY); } catch(e) {}
   }
 
-  if (!CONFIG.SUPABASE_URL || CONFIG.SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+  if (!db) {
     setSyncState('error');
     document.getElementById('recipeGrid').innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">⚙️</div>
-        <h3>Configure Your Keys</h3>
-        <p>Open <code>config.js</code> and fill in your Supabase and Anthropic keys.</p>
+        <h3>Database Not Connected</h3>
+        <p>Could not connect to Supabase. Check your keys and try refreshing.</p>
       </div>`;
     return;
   }
@@ -2230,6 +2234,7 @@ async function showApp() {
 }
 
 function showLogin() {
+  appStarted = false;
   document.getElementById('loginScreen').classList.remove('hidden');
 }
 
@@ -2264,13 +2269,18 @@ function wireAuth() {
       // else: stay on login screen
     });
 
+    let justLoggedIn = false;
     netlifyIdentity.on('login', () => {
+      justLoggedIn = true;
       netlifyIdentity.close();
       showApp();
     });
 
     netlifyIdentity.on('close', () => {
-      // If widget closed without a successful login, restore the login screen
+      // If widget closed without a successful login, restore the login screen.
+      // Guard against race condition: close fires right after login before
+      // currentUser() is populated.
+      if (justLoggedIn) { justLoggedIn = false; return; }
       if (!netlifyIdentity.currentUser()) showLogin();
     });
 

@@ -871,7 +871,9 @@
   <div class="login-box">
     <div class="login-logo">NOURISH<span>RIOT</span></div>
     <div class="login-tagline">your personal recipe sanctuary</div>
-    <div class="login-btn-wrap"><button class="login-btn" id="niLoginBtn">Login</button></div>
+    <div class="login-btn-wrap">
+      <button class="login-btn" id="niLoginBtn">Login</button>
+    </div>
   </div>
 </div>
 
@@ -2184,19 +2186,25 @@ function wireEvents() {
 // ═══════════════════════════════════════════════
 // ── AUTH
 // ═══════════════════════════════════════════════
-function isAuthed() {
-  if (!window.netlifyIdentity) return true; // local dev: always authed
-  return !!netlifyIdentity.currentUser();
-}
+
+// Use Netlify functions when hosted; use local config.js when on localhost or file://
+const isNetlify = window.location.protocol !== 'file:' &&
+                  window.location.hostname !== 'localhost' &&
+                  !window.location.hostname.startsWith('127.');
 
 async function showApp() {
   document.getElementById('loginScreen').classList.add('hidden');
 
-  // On Netlify, fetch Supabase keys from server-side config function
+  // Wire UI immediately so everything is clickable before async work
+  renderSkeletons();
+  renderPills();
+  wireEvents();
+
+  // On hosted environments fetch Supabase keys from server-side config function
   if (!db && isNetlify) {
     try {
-      const res  = await fetch('/.netlify/functions/config');
-      const cfg  = await res.json();
+      const res = await fetch('/.netlify/functions/config');
+      const cfg = await res.json();
       if (cfg.supabaseUrl && cfg.supabaseKey) {
         CONFIG.SUPABASE_URL = cfg.supabaseUrl;
         CONFIG.SUPABASE_KEY = cfg.supabaseKey;
@@ -2204,22 +2212,18 @@ async function showApp() {
       }
     } catch(e) { console.warn('Config fetch failed:', e.message); }
   }
-  // Local: init Supabase if it wasn't ready at page load
+  // Local: init Supabase if not ready at page load
   if (!db && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_KEY) {
     try { db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY); } catch(e) {}
   }
 
-  renderSkeletons();
-  renderPills();
-  wireEvents();
-
-  if (!CONFIG.SUPABASE_URL || CONFIG.SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+  if (!db) {
     setSyncState('error');
     document.getElementById('recipeGrid').innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">⚙️</div>
         <h3>Configure Your Keys</h3>
-        <p>Open <code>config.js</code> and fill in your Supabase and Anthropic keys.</p>
+        <p>Add Supabase and Anthropic keys to your environment.</p>
       </div>`;
     return;
   }
@@ -2232,62 +2236,34 @@ function showLogin() {
   document.getElementById('loginScreen').classList.remove('hidden');
 }
 
-// Use Netlify functions when hosted; use local config.js when on localhost or opening as a file
-const isNetlify = window.location.protocol !== 'file:' &&
-                  window.location.hostname !== 'localhost' &&
-                  !window.location.hostname.startsWith('127.');
-
 function wireAuth() {
+  // Local dev — no Netlify Identity widget, skip auth entirely
   if (!window.netlifyIdentity) {
-    // Local dev: skip auth
     showApp();
     return;
   }
 
-  // Wire the button first — before init() — so a widget error never prevents it
+  // Open Netlify Identity modal when Login button clicked
   document.getElementById('niLoginBtn').addEventListener('click', () => {
-    // Hide the login screen overlay BEFORE opening the widget — the Netlify
-    // Identity iframe has z-index ~99, so any overlay above it would block
-    // the modal.  We restore the screen on 'close' if the user didn't log in.
-    document.getElementById('loginScreen').classList.add('hidden');
     netlifyIdentity.open();
   });
 
+  // Logout button
   document.getElementById('logoutBtn').addEventListener('click', () => {
     netlifyIdentity.logout();
   });
 
-  try {
-    netlifyIdentity.init();
-
-    netlifyIdentity.on('init', (user) => {
-      if (user) showApp();
-      // else: stay on login screen
-    });
-
-    netlifyIdentity.on('login', () => {
-      netlifyIdentity.close();
-      showApp();
-    });
-
-    netlifyIdentity.on('close', () => {
-      // If widget closed without a successful login, restore the login screen
-      if (!netlifyIdentity.currentUser()) showLogin();
-    });
-
-    netlifyIdentity.on('logout', () => {
-      showLogin();
-    });
-  } catch (e) {
-    console.error('Netlify Identity init error:', e);
-  }
+  netlifyIdentity.on('init',   (user) => { if (user) showApp(); else showLogin(); });
+  netlifyIdentity.on('login',  ()     => { netlifyIdentity.close(); showApp(); });
+  netlifyIdentity.on('logout', ()     => { showLogin(); });
 }
 
 // ═══════════════════════════════════════════════
 // ── INIT
 // ═══════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   wireAuth();
+  if (isAuthed()) await showApp();
 });
 </script>
 </body>

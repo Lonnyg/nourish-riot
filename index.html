@@ -2262,8 +2262,7 @@ function wireAuth() {
   });
 
   try {
-    netlifyIdentity.init();
-
+    // Register all handlers BEFORE init() so the 'init' event is never missed
     netlifyIdentity.on('init', (user) => {
       if (user) showApp();
       // else: stay on login screen
@@ -2277,7 +2276,6 @@ function wireAuth() {
     });
 
     netlifyIdentity.on('close', () => {
-      // If widget closed without a successful login, restore the login screen.
       // Guard against race condition: close fires right after login before
       // currentUser() is populated.
       if (justLoggedIn) { justLoggedIn = false; return; }
@@ -2287,6 +2285,19 @@ function wireAuth() {
     netlifyIdentity.on('logout', () => {
       showLogin();
     });
+
+    // init() processes any auth callback tokens in the URL hash
+    // (email confirmation, password recovery, invite links)
+    netlifyIdentity.init();
+
+    // If landing via an email confirmation/recovery/invite link, open the
+    // widget so the user sees the confirmation and gets logged in
+    const hash = window.location.hash;
+    if (hash && (hash.includes('confirmation_token') ||
+                 hash.includes('recovery_token') ||
+                 hash.includes('invite_token'))) {
+      netlifyIdentity.open();
+    }
   } catch (e) {
     console.error('Netlify Identity init error:', e);
   }

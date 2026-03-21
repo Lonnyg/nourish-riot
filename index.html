@@ -2256,14 +2256,15 @@ function wireAuth() {
   netlifyIdentity.on('init',   (user) => { if (user) showApp(); else showLogin(); });
   netlifyIdentity.on('login',  ()     => { netlifyIdentity.close(); showApp(); });
   netlifyIdentity.on('logout', ()     => { showLogin(); });
+
+  netlifyIdentity.init();
 }
 
 // ═══════════════════════════════════════════════
 // ── INIT
 // ═══════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   wireAuth();
-  if (isAuthed()) await showApp();
 });
 </script>
 </body>

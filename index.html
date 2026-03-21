@@ -2257,7 +2257,13 @@ function wireAuth() {
   netlifyIdentity.on('login',  ()     => { netlifyIdentity.close(); showApp(); });
   netlifyIdentity.on('logout', ()     => { showLogin(); });
 
-  netlifyIdentity.init();
+  // On Netlify-hosted pages the widget may have already fired init before our
+  // handler was registered — check currentUser() synchronously as a fallback
+  if (netlifyIdentity.currentUser()) {
+    showApp();
+  } else {
+    netlifyIdentity.init();
+  }
 }
 
 // ═══════════════════════════════════════════════

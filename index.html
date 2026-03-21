@@ -2232,7 +2232,9 @@ function showLogin() {
   document.getElementById('loginScreen').classList.remove('hidden');
 }
 
-const isNetlify = window.location.hostname !== 'localhost' &&
+// Use Netlify functions when hosted; use local config.js when on localhost or opening as a file
+const isNetlify = window.location.protocol !== 'file:' &&
+                  window.location.hostname !== 'localhost' &&
                   !window.location.hostname.startsWith('127.');
 
 function wireAuth() {
